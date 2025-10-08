@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard | RUBY</title>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: url('underwaterpic.jpg') no-repeat center center/cover;; }
+
+    header {
+      background: #05cd44;
+      color: white;
+      padding: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    header h1 { margin: 0; font-size: 20px; }
+    nav { display: flex; gap: 15px; }
+    nav a { color: white; text-decoration: none; font-weight: bold; }
+    nav a:hover { text-decoration: underline; }
+
+    .container { padding: 20px; }
+
+    /* ✅ Panels */
+    .sensor-grid {
+      display: flex;
+      gap: 20px;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    .card {
+      flex: 1;
+      min-width: 250px;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
+      color: #333;
+      animation: fadeInUp 0.6s ease;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .card:hover { transform: translateY(-5px) scale(1.03); box-shadow: 0 10px 18px rgba(0,0,0,0.2); }
+
+    /* Background colors */
+    .temperature { background: linear-gradient(135deg, #ffebee, #ed3749); }
+    .ph { background: linear-gradient(135deg, #e8f5e9, #65eb69); }
+    .turbidity { background: linear-gradient(135deg, #e3f2fd, #4da5ee); }
+
+    /* Icons */
+    .icon { font-size: 40px; margin-bottom: 10px; display: inline-block; }
+    .icon.thermo { color: #c62828; animation: rise 2s infinite; }
+    .icon.beaker { color: #2e7d32; animation: bubble 1.5s infinite; }
+    .icon.water { color: #1565c0; animation: bounce 2s infinite; }
+
+    /* Animations */
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px);} to {opacity:1; transform:translateY(0);} }
+    @keyframes bounce { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-8px);} }
+    @keyframes rise { 0%{transform:translateY(5px) scaleY(0.9);} 50%{transform:translateY(-5px) scaleY(1.1);} 100%{transform:translateY(5px) scaleY(0.9);} }
+    @keyframes bubble { 0%,100%{transform:scale(1); opacity:1;} 50%{transform:scale(1.2); opacity:0.8;} }
+
+    /* Status Panel */
+    .status-card {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 10px;
+      background: rgb(98, 213, 233);
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
+      font-weight: bold;
+    }
+
+    /* Chart */
+    .chart-card {
+      margin-top: 20px;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.538);
+      border-radius: 10px;
+      box-shadow: 0 0 8px rgb(0, 0, 0);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .sensor-grid { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>RUBY | Real Time Unsupervised Bloom System </h1>
+    <nav>
+      <a href="history.html"><i class="fas fa-history"></i> History</a>
+      <a href="map.html"><i class="fas fa-map-marked-alt"></i> Map</a>
+      <a href="#" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</a>
+    </nav>
+  </header>
+
+  <div class="container">
+    <!-- ✅ Animated Panels -->
+    <div class="sensor-grid">
+      <div class="card temperature">
+        <i class="fas fa-thermometer-half icon thermo"></i>
+        <h3>Temperature</h3>
+        <p id="temperatureValue">-- °C</p>
+      </div>
+      <div class="card ph">
+        <i class="fas fa-flask icon beaker"></i>
+        <h3>pH Level</h3>
+        <p id="phValue">--</p>
+      </div>
+      <div class="card turbidity">
+        <i class="fas fa-water icon water"></i>
+        <h3>Turbidity</h3>
+        <p id="turbidityValue">-- NTU</p>
+      </div>
+    </div>
+
+    <!-- ✅ Status -->
+    <div class="status-card">
+      <i class="fas fa-info-circle"></i> Status: <span id="statusText">--</span>
+    </div>
+
+    <!-- ✅ Data Trends -->
+    <div class="chart-card">
+      <h3><i class="fas fa-chart-line"></i> Data Trends</h3>
+      <canvas id="sensorChart"></canvas>
+    </div>
+  </div>
+
+  <script>
+    // Firebase Config
+    const firebaseConfig = {
+      apiKey: "AIzaSyAN6dv1k6wwqWT3pGn0jqUnjsGtevRh-iA",
+      authDomain: "red-tide-monitoring-project.firebaseapp.com",
+      databaseURL: "https://red-tide-monitoring-project-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "red-tide-monitoring-project",
+      storageBucket: "red-tide-monitoring-project.appspot.com",
+      messagingSenderId: "39343588338",
+      appId: "1:39343588338:web:991a6878a0aaee1651216b"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const auth = firebase.auth();
+
+    // Live values
+    db.ref("sensors").on("value", snapshot => {
+      const data = snapshot.val();
+      if (!data) return;
+
+      document.getElementById("temperatureValue").textContent = data.temperature?.toFixed(2) + " °C";
+      document.getElementById("phValue").textContent = data.ph?.toFixed(2);
+      document.getElementById("turbidityValue").textContent = data.turbidity?.toFixed(2) + " NTU";
+
+      let status = "Normal";
+      if (data.temperature > 30 || data.ph < 6.5 || data.ph > 8.5 || data.turbidity > 100) {
+        status = "⚠️ Warning: Possible Bloom";
+      }
+      document.getElementById("statusText").textContent = status;
+    });
+
+    // Chart.js setup
+    const ctx = document.getElementById("sensorChart").getContext("2d");
+    const sensorChart = new Chart(ctx, {
+      type: "line",
+      data: { labels: [], datasets: [
+        { label: "Temperature (°C)", data: [], borderColor: "red", fill: false },
+        { label: "pH Level", data: [], borderColor: "green", fill: false },
+        { label: "Turbidity (NTU)", data: [], borderColor: "blue", fill: false }
+      ]},
+      options: {
+        responsive: true,
+        scales: {
+          x: { type: "time", time: { unit: "minute", displayFormats: { minute: "HH:mm" } } },
+          y: { beginAtZero: true }
+        }
+      }
+    });
+
+    // History updates
+    db.ref("history").limitToLast(50).on("child_added", snapshot => {
+      const d = snapshot.val();
+      if (!d.timestamp) return;
+      const time = new Date(d.timestamp * 1000);
+
+      sensorChart.data.labels.push(time);
+      sensorChart.data.datasets[0].data.push(d.temperature);
+      sensorChart.data.datasets[1].data.push(d.ph);
+      sensorChart.data.datasets[2].data.push(d.turbidity);
+
+      if (sensorChart.data.labels.length > 50) {
+        sensorChart.data.labels.shift();
+        sensorChart.data.datasets.forEach(ds => ds.data.shift());
+      }
+      sensorChart.update();
+    });
+
+    // Logout
+    document.getElementById("logoutBtn").addEventListener("click", () => {
+      auth.signOut().then(() => {
+        window.location.href = "main.html";
+      });
+    });
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+                                                                                                                                                                                                                                                                                                                                   
+
+
+
+
+

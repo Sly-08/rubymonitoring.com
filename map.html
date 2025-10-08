@@ -1,0 +1,124 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Map | Red Tide Monitoring</title>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+
+  <!-- Leaflet.js -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background: #f1f8e9; }
+    header { background: #004d40; color: white; padding: 15px; text-align: center; position: relative; }
+    header .user-info { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); font-size: 14px; opacity: 0.9; }
+
+    nav {
+      background: #00796b;
+      padding: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+    }
+    nav a { color: white; text-decoration: none; font-size: 16px; }
+    nav a i { margin-right: 6px; }
+
+    #map {
+      width: 100%;
+      height: calc(100vh - 140px);
+    }
+
+    @media (max-width: 768px) {
+      nav a { font-size: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1><i class="fas fa-map-marked-alt"></i> Sensor Map</h1>
+    <div class="user-info" id="userEmail">Loading...</div>
+  </header>
+  <nav>
+    <a href="dashboard.html"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+    <a href="map.html"><i class="fas fa-map-marked-alt"></i> Map</a>
+    <a href="history.html"><i class="fas fa-history"></i> History</a>
+    <a href="#" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</a>
+  </nav>
+  <div id="map"></div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAN6dv1k6wwqWT3pGn0jqUnjsGtevRh-iA",
+      authDomain: "red-tide-monitoring-project.firebaseapp.com",
+      databaseURL: "https://red-tide-monitoring-project-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "red-tide-monitoring-project",
+      storageBucket: "red-tide-monitoring-project.firebasestorage.app",
+      messagingSenderId: "39343588338",
+      appId: "1:39343588338:web:991a6878a0aaee1651216b",
+      measurementId: "G-QSVFVPPQM5"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.database();
+
+    // Auth guard
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        document.getElementById("userEmail").textContent = "Welcome, " + (user.displayName || user.email);
+      } else {
+        window.location.href = "main.html";
+      }
+    });
+
+    function logout() {
+      auth.signOut().then(() => window.location.href = "main.html");
+    }
+
+    // Init Leaflet map
+    const map = L.map("map").setView([10.3157, 123.8854], 10);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap contributors"
+    }).addTo(map);
+
+    // Markers
+    const sensorMarkers = {};
+
+    db.ref("sensors").on("value", (snapshot) => {
+      const data = snapshot.val();
+      if (!data || !data.latitude || !data.longitude) return;
+
+      const { latitude, longitude, temperature, ph, turbidity } = data;
+      const status = (ph < 6.5 || ph > 8.5 || turbidity > 1000) ? "danger" :
+                     (ph >= 6.5 && ph < 7 || ph > 8 && ph <= 8.5 || turbidity > 500) ? "warning" : "safe";
+
+      const color = status === "danger" ? "red" : status === "warning" ? "orange" : "green";
+
+      if (sensorMarkers["main"]) {
+        sensorMarkers["main"].setLatLng([latitude, longitude]);
+        sensorMarkers["main"].setPopupContent(`
+          <b>Sensor Location</b><br>
+          🌡 Temp: ${temperature.toFixed(2)} °C<br>
+          ⚗ pH: ${ph.toFixed(2)}<br>
+          💧 Turbidity: ${turbidity.toFixed(2)} NTU<br>
+          Status: <b style="color:${color}">${status.toUpperCase()}</b>
+        `);
+      } else {
+        sensorMarkers["main"] = L.marker([latitude, longitude]).addTo(map)
+          .bindPopup("Loading sensor data...");
+      }
+    });
+  </script>
+</body>
+</html>
+```

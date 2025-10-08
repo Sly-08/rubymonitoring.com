@@ -1,0 +1,11 @@
+{
+  "hosting": {
+    "site": "red-tide-monitoring-project-8a5a7",
+    "public": "public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ]
+  }
+}
